@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: lab4_postgres
+    environment:
+      POSTGRES_DB: lab4
+      POSTGRES_USER: lab4
+      POSTGRES_PASSWORD: lab4
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d:ro
+      - ./data:/data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab4 -d lab4"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: lab4_clickhouse
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: trino
+      CLICKHOUSE_PASSWORD: trino
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "18123:8123"
+      - "19000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./init/clickhouse:/docker-entrypoint-initdb.d:ro
+      - ./data:/data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user trino --password trino --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  trino:
+    image: trinodb/trino:480
+    container_name: lab4_trino
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./trino/catalog:/etc/trino/catalog:ro
+      - ./sql:/sql:ro
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+  clickhouse_logs:
